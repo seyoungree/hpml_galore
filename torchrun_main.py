@@ -70,7 +70,7 @@ def parse_args(args):
     parser.add_argument("--update_proj_gap", type=int, default=50)
     parser.add_argument("--galore_scale", type=float, default=1.0)
     parser.add_argument("--proj_type", type=str, default="std")
-    parser.add_argument("--proj_quantize", type=str, default=None, choices=["4bit, 8bit"]
+    parser.add_argument("--proj_quantize", type=str, default=None, choices=["4bit", "8bit"],
                         help="Quantization level for the projection matrix.")
     
     # disable ddp, single_gpu
