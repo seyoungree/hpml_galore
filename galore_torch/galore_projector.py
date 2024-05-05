@@ -5,12 +5,11 @@ import bitsandbytes.functional as bnbf
 # we'd have to also modify the Llama-Factory package to accomodate for the new argument. For now, we can just hardcode these flags
 # and modify it in between runs, so we don't have to touch Llama-Factory.  
 
-QUANTIZE = 'fp4' # if quantizing, choose one of 'fp8', 'fp4', 'fp8_blockwise' - otherwise, set to None
+QUANTIZE = None # if quantizing, choose one of 'fp8', 'fp4', 'fp8_blockwise' - otherwise, set to None
 BLOCKSZ = 128 # only matters if QUANTIZE = 'fp8_blockwise'
 
 class GaLoreProjector:
-    def __init__(self, rank, verbose=False, update_proj_gap=200, scale=1.0,
-                 proj_type='std', quantize_type='fp8', blocksize=128):
+    def __init__(self, rank, verbose=False, update_proj_gap=200, scale=1.0, proj_type='std'):
         self.rank = rank
         self.verbose = verbose
         self.update_proj_gap = update_proj_gap
@@ -109,9 +108,14 @@ class GaLoreProjector:
             full_rank_grad = torch.matmul(self.ortho_matrix, low_rank_grad)
             if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
         elif self.proj_type == 'full':
+            if QUANTIZE:
+                self.ortho_matrix[0] = self._dequantize(self.ortho_matrix[0], QUANTIZE, self.quantization_state, full_rank_grad.dtype)
+                self.ortho_matrix[1] = self._dequantize(self.ortho_matrix[0], QUANTIZE, self.quantization_state_full, full_rank_grad.dtype)
             full_rank_grad = torch.matmul(self.ortho_matrix[0], low_rank_grad) @ self.ortho_matrix[1]
+            if QUANTIZE:
+                self.ortho_matrix[0], self.quantization_state = self._quantize(self.ortho_matrix[0], QUANTIZE, BLOCKSZ)
+                self.ortho_matrix[0], self.quantization_state[1] = self._quantize(self.ortho_matrix[1], QUANTIZE, BLOCKSZ)
         
-
         return full_rank_grad * self.scale
         
         
