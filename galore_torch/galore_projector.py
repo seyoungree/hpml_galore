@@ -5,11 +5,12 @@ import bitsandbytes.functional as bnbf
 # we'd have to also modify the Llama-Factory package to accomodate for the new argument. For now, we can just hardcode these flags
 # and modify it in between runs, so we don't have to touch Llama-Factory.  
 
-QUANTIZE = None # if quantizing, choose one of 'fp8', 'fp4', 'fp8_blockwise' - otherwise, set to None
+QUANTIZE = 'fp4' # if quantizing, choose one of 'fp8', 'fp4', 'fp8_blockwise' - otherwise, set to None
 BLOCKSZ = 128 # only matters if QUANTIZE = 'fp8_blockwise'
 
 class GaLoreProjector:
-    def __init__(self, rank, verbose=False, update_proj_gap=200, scale=1.0, proj_type='std'):
+    def __init__(self, rank, verbose=False, update_proj_gap=200, scale=1.0,
+                 proj_type='std', quantize_type='fp8', blocksize=128):
         self.rank = rank
         self.verbose = verbose
         self.update_proj_gap = update_proj_gap
@@ -26,12 +27,14 @@ class GaLoreProjector:
                     if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)  
                 if QUANTIZE: self.ortho_matrix = self._dequantize(self.ortho_matrix, QUANTIZE, self.quantization_state, full_rank_grad.dtype) # dequantize
                 low_rank_grad = torch.matmul(full_rank_grad, self.ortho_matrix.t())
+                if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
             else:
                 if self.ortho_matrix is None or iter % self.update_proj_gap == 0:
                     self.ortho_matrix = self.get_orthogonal_matrix(full_rank_grad, self.rank, type='left')
                     if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)  
                 if QUANTIZE: self.ortho_matrix = self._dequantize(self.ortho_matrix, QUANTIZE, self.quantization_state, full_rank_grad.dtype) # dequantize         
                 low_rank_grad = torch.matmul(self.ortho_matrix.t(), full_rank_grad)
+                if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
                 
         elif self.proj_type == 'reverse_std':
             if full_rank_grad.shape[0] >= full_rank_grad.shape[1]:
@@ -40,12 +43,14 @@ class GaLoreProjector:
                     if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
                 if QUANTIZE: self.ortho_matrix = self._dequantize(self.ortho_matrix, QUANTIZE, self.quantization_state, full_rank_grad.dtype)
                 low_rank_grad = torch.matmul(self.ortho_matrix.t(),full_rank_grad)
+                if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
             else:
                 if self.ortho_matrix is None or iter % self.update_proj_gap == 0:
                     self.ortho_matrix = self.get_orthogonal_matrix(full_rank_grad, self.rank, type='right')
                     if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
                 if QUANTIZE: self.ortho_matrix = self._dequantize(self.ortho_matrix, QUANTIZE, self.quantization_state, full_rank_grad.dtype)
                 low_rank_grad = torch.matmul(full_rank_grad,self.ortho_matrix.t())
+                if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
 
         elif self.proj_type == 'right':
             if self.ortho_matrix is None or iter % self.update_proj_gap == 0:
@@ -53,6 +58,7 @@ class GaLoreProjector:
                 if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
             if QUANTIZE: self.ortho_matrix = self._dequantize(self.ortho_matrix, QUANTIZE, self.quantization_state, full_rank_grad.dtype)
             low_rank_grad = torch.matmul(full_rank_grad, self.ortho_matrix.t())
+            if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
 
         elif self.proj_type == 'left':
             if self.ortho_matrix is None or iter % self.update_proj_gap == 0:
@@ -60,13 +66,22 @@ class GaLoreProjector:
                 if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
             if QUANTIZE: self.ortho_matrix = self._dequantize(self.ortho_matrix, QUANTIZE, self.quantization_state, full_rank_grad.dtype)
             low_rank_grad = torch.matmul(self.ortho_matrix.t(), full_rank_grad)
+            if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
 
         elif self.proj_type == 'full':
             if self.ortho_matrix is None or iter % self.update_proj_gap == 0:
                 self.ortho_matrix = self.get_orthogonal_matrix(full_rank_grad, self.rank, type='full')
+                if QUANTIZE:
+                    self.ortho_matrix[0], self.quantization_state = self._quantize(self.ortho_matrix[0], QUANTIZE, BLOCKSZ)
+                    self.ortho_matrix[1], self.quantization_state_full = self._quantize(self.ortho_matrix[1], QUANTIZE, BLOCKSZ)
+            if QUANTIZE:
+                    self.ortho_matrix[0] = self._dequantize(self.ortho_matrix[0], QUANTIZE, self.quantization_state, full_rank_grad.dtype)
+                    self.ortho_matrix[1] = self._dequantize(self.ortho_matrix[1], QUANTIZE, self.quantization_state2, full_rank_grad.dtype)
             low_rank_grad = torch.matmul(self.ortho_matrix[0].t(), full_rank_grad) @ self.ortho_matrix[1].t()
+            if QUANTIZE:
+                    self.ortho_matrix[0], self.quantization_state = self._quantize(self.ortho_matrix[0], QUANTIZE, BLOCKSZ)
+                    self.ortho_matrix[1], self.quantization_state_full = self._quantize(self.ortho_matrix[1], QUANTIZE, BLOCKSZ)
         
-        if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
         return low_rank_grad
 
     def project_back(self, low_rank_grad):
@@ -96,7 +111,7 @@ class GaLoreProjector:
         elif self.proj_type == 'full':
             full_rank_grad = torch.matmul(self.ortho_matrix[0], low_rank_grad) @ self.ortho_matrix[1]
         
-        
+
         return full_rank_grad * self.scale
         
         
