@@ -20,6 +20,7 @@ import math
 import os
 import random
 from pathlib import Path
+import wandb
 
 import datasets
 import evaluate
@@ -246,6 +247,9 @@ def main():
     # information sent is the one passed as arguments along with your Python/PyTorch versions.
     send_example_telemetry("run_glue_no_trainer", args)
 
+    # init wandb 
+    wandb.init(project="galore-glue")
+    
     # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
     # If we're using tracking, we also need to initialize it here and it will by default pick up all supported trackers
     # in the environment
@@ -583,6 +587,17 @@ def main():
 
     # Train!
     total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
+    n_total_params = sum(p.numel() for p in model.parameters())
+
+    # Update wandb config before training
+    run_config = dict(vars(args))
+    run_config.update({
+        "max_lr": run_config.pop("learning_rate"),  # rename lr to max_lr to avoid conflicts with scheduler
+        "total_batch_size": total_batch_size,
+        "num_params_M": n_total_params / 1_000_000
+    })
+    wandb.config.update(run_config, allow_val_change=True)
+
 
     logger.info("***** Running training *****")
     logger.info(f"  Num examples = {len(train_dataset)}")
@@ -637,7 +652,6 @@ def main():
         else:
             active_dataloader = train_dataloader
         for step, batch in enumerate(active_dataloader):
-
             outputs = model(**batch)
             loss = outputs.loss
             # We keep track of the loss at each epoch
@@ -651,6 +665,9 @@ def main():
                 optimizer.zero_grad()
                 progress_bar.update(1)
                 completed_steps += 1
+                wandb.log({
+                    "loss": loss.item()}
+                )
 
             if isinstance(checkpointing_steps, int):
                 if completed_steps % checkpointing_steps == 0:
@@ -658,6 +675,7 @@ def main():
                     if args.output_dir is not None:
                         output_dir = os.path.join(args.output_dir, output_dir)
                     accelerator.save_state(output_dir)
+
 
             if completed_steps >= args.max_train_steps:
                 break
@@ -682,6 +700,8 @@ def main():
             )
 
         eval_metric = metric.compute()
+        wandb.log(eval_metric,
+                step=completed_steps)
         logger.info(f"epoch {epoch}: {eval_metric}")
 
         if args.with_tracking:
