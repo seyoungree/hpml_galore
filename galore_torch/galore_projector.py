@@ -5,17 +5,19 @@ import bitsandbytes.functional as bnbf
 # we'd have to also modify the Llama-Factory package to accomodate for the new argument. For now, we can just hardcode these flags
 # and modify it in between runs, so we don't have to touch Llama-Factory.  
 
-QUANTIZE = None # if quantizing, choose one of 'fp8', 'fp4', 'fp8_blockwise' - otherwise, set to None
-BLOCKSZ = 128 # only matters if QUANTIZE = 'fp8_blockwise'
+# QUANTIZE = None # if quantizing, choose one of 'fp8', 'fp4', 'fp8_blockwise' - otherwise, set to None
+# self.quantize_blocksz = 128 # only matters if QUANTIZE = 'fp8_blockwise'
 
 class GaLoreProjector:
-    def __init__(self, rank, verbose=False, update_proj_gap=200, scale=1.0, proj_type='std'):
+    def __init__(self, rank, verbose=False, update_proj_gap=200, scale=1.0, proj_type='std', quantize_type='8bit_blockwise', quantize_blocksz=4096):
         self.rank = rank
         self.verbose = verbose
         self.update_proj_gap = update_proj_gap
         self.scale = scale
         self.ortho_matrix = None
         self.proj_type = proj_type
+        self.quantize_type = quantize_type if quantize_type in ['4bit', '8bit', '8bit_blockwise'] else None
+        self.quantize_blocksz = quantize_blocksz
 
     # only added quantization functionality for 'std'
     def project(self, full_rank_grad, iter):
@@ -23,98 +25,98 @@ class GaLoreProjector:
             if full_rank_grad.shape[0] >= full_rank_grad.shape[1]:
                 if self.ortho_matrix is None or iter % self.update_proj_gap == 0:
                     self.ortho_matrix = self.get_orthogonal_matrix(full_rank_grad, self.rank, type='right')
-                    if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)  
-                if QUANTIZE: self.ortho_matrix = self._dequantize(self.ortho_matrix, QUANTIZE, self.quantization_state, full_rank_grad.dtype) # dequantize
+                    if self.quantize_type: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, self.quantize_type, self.quantize_blocksz)  
+                if self.quantize_type: self.ortho_matrix = self._dequantize(self.ortho_matrix, self.quantize_type, self.quantization_state, full_rank_grad.dtype) # dequantize
                 low_rank_grad = torch.matmul(full_rank_grad, self.ortho_matrix.t())
-                if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
+                if self.quantize_type: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, self.quantize_type, self.quantize_blocksz)
             else:
                 if self.ortho_matrix is None or iter % self.update_proj_gap == 0:
                     self.ortho_matrix = self.get_orthogonal_matrix(full_rank_grad, self.rank, type='left')
-                    if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)  
-                if QUANTIZE: self.ortho_matrix = self._dequantize(self.ortho_matrix, QUANTIZE, self.quantization_state, full_rank_grad.dtype) # dequantize         
+                    if self.quantize_type: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, self.quantize_type, self.quantize_blocksz)  
+                if self.quantize_type: self.ortho_matrix = self._dequantize(self.ortho_matrix, self.quantize_type, self.quantization_state, full_rank_grad.dtype) # dequantize         
                 low_rank_grad = torch.matmul(self.ortho_matrix.t(), full_rank_grad)
-                if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
+                if self.quantize_type: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, self.quantize_type, self.quantize_blocksz)
                 
         elif self.proj_type == 'reverse_std':
             if full_rank_grad.shape[0] >= full_rank_grad.shape[1]:
                 if self.ortho_matrix is None or iter % self.update_proj_gap == 0:
                     self.ortho_matrix = self.get_orthogonal_matrix(full_rank_grad, self.rank, type='left')
-                    if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
-                if QUANTIZE: self.ortho_matrix = self._dequantize(self.ortho_matrix, QUANTIZE, self.quantization_state, full_rank_grad.dtype)
+                    if self.quantize_type: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, self.quantize_type, self.quantize_blocksz)
+                if self.quantize_type: self.ortho_matrix = self._dequantize(self.ortho_matrix, self.quantize_type, self.quantization_state, full_rank_grad.dtype)
                 low_rank_grad = torch.matmul(self.ortho_matrix.t(),full_rank_grad)
-                if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
+                if self.quantize_type: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, self.quantize_type, self.quantize_blocksz)
             else:
                 if self.ortho_matrix is None or iter % self.update_proj_gap == 0:
                     self.ortho_matrix = self.get_orthogonal_matrix(full_rank_grad, self.rank, type='right')
-                    if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
-                if QUANTIZE: self.ortho_matrix = self._dequantize(self.ortho_matrix, QUANTIZE, self.quantization_state, full_rank_grad.dtype)
+                    if self.quantize_type: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, self.quantize_type, self.quantize_blocksz)
+                if self.quantize_type: self.ortho_matrix = self._dequantize(self.ortho_matrix, self.quantize_type, self.quantization_state, full_rank_grad.dtype)
                 low_rank_grad = torch.matmul(full_rank_grad,self.ortho_matrix.t())
-                if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
+                if self.quantize_type: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, self.quantize_type, self.quantize_blocksz)
 
         elif self.proj_type == 'right':
             if self.ortho_matrix is None or iter % self.update_proj_gap == 0:
                 self.ortho_matrix = self.get_orthogonal_matrix(full_rank_grad, self.rank, type='right')
-                if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
-            if QUANTIZE: self.ortho_matrix = self._dequantize(self.ortho_matrix, QUANTIZE, self.quantization_state, full_rank_grad.dtype)
+                if self.quantize_type: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, self.quantize_type, self.quantize_blocksz)
+            if self.quantize_type: self.ortho_matrix = self._dequantize(self.ortho_matrix, self.quantize_type, self.quantization_state, full_rank_grad.dtype)
             low_rank_grad = torch.matmul(full_rank_grad, self.ortho_matrix.t())
-            if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
+            if self.quantize_type: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, self.quantize_type, self.quantize_blocksz)
 
         elif self.proj_type == 'left':
             if self.ortho_matrix is None or iter % self.update_proj_gap == 0:
                 self.ortho_matrix = self.get_orthogonal_matrix(full_rank_grad, self.rank, type='left')
-                if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
-            if QUANTIZE: self.ortho_matrix = self._dequantize(self.ortho_matrix, QUANTIZE, self.quantization_state, full_rank_grad.dtype)
+                if self.quantize_type: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, self.quantize_type, self.quantize_blocksz)
+            if self.quantize_type: self.ortho_matrix = self._dequantize(self.ortho_matrix, self.quantize_type, self.quantization_state, full_rank_grad.dtype)
             low_rank_grad = torch.matmul(self.ortho_matrix.t(), full_rank_grad)
-            if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
+            if self.quantize_type: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, self.quantize_type, self.quantize_blocksz)
 
         elif self.proj_type == 'full':
             if self.ortho_matrix is None or iter % self.update_proj_gap == 0:
                 self.ortho_matrix = self.get_orthogonal_matrix(full_rank_grad, self.rank, type='full')
-                if QUANTIZE:
-                    self.ortho_matrix[0], self.quantization_state = self._quantize(self.ortho_matrix[0], QUANTIZE, BLOCKSZ)
-                    self.ortho_matrix[1], self.quantization_state_full = self._quantize(self.ortho_matrix[1], QUANTIZE, BLOCKSZ)
-            if QUANTIZE:
-                    self.ortho_matrix[0] = self._dequantize(self.ortho_matrix[0], QUANTIZE, self.quantization_state, full_rank_grad.dtype)
-                    self.ortho_matrix[1] = self._dequantize(self.ortho_matrix[1], QUANTIZE, self.quantization_state2, full_rank_grad.dtype)
+                if self.quantize_type:
+                    self.ortho_matrix[0], self.quantization_state = self._quantize(self.ortho_matrix[0], self.quantize_type, self.quantize_blocksz)
+                    self.ortho_matrix[1], self.quantization_state_full = self._quantize(self.ortho_matrix[1], self.quantize_type, self.quantize_blocksz)
+            if self.quantize_type:
+                    self.ortho_matrix[0] = self._dequantize(self.ortho_matrix[0], self.quantize_type, self.quantization_state, full_rank_grad.dtype)
+                    self.ortho_matrix[1] = self._dequantize(self.ortho_matrix[1], self.quantize_type, self.quantization_state2, full_rank_grad.dtype)
             low_rank_grad = torch.matmul(self.ortho_matrix[0].t(), full_rank_grad) @ self.ortho_matrix[1].t()
-            if QUANTIZE:
-                    self.ortho_matrix[0], self.quantization_state = self._quantize(self.ortho_matrix[0], QUANTIZE, BLOCKSZ)
-                    self.ortho_matrix[1], self.quantization_state_full = self._quantize(self.ortho_matrix[1], QUANTIZE, BLOCKSZ)
+            if self.quantize_type:
+                    self.ortho_matrix[0], self.quantization_state = self._quantize(self.ortho_matrix[0], self.quantize_type, self.quantize_blocksz)
+                    self.ortho_matrix[1], self.quantization_state_full = self._quantize(self.ortho_matrix[1], self.quantize_type, self.quantize_blocksz)
         
         return low_rank_grad
 
     def project_back(self, low_rank_grad):
 
         if self.proj_type == 'std':
-            if QUANTIZE: self.ortho_matrix = self._dequantize(self.ortho_matrix, QUANTIZE, self.quantization_state, low_rank_grad.dtype) # dequantize
+            if self.quantize_type: self.ortho_matrix = self._dequantize(self.ortho_matrix, self.quantize_type, self.quantization_state, low_rank_grad.dtype) # dequantize
             if low_rank_grad.shape[0] >= low_rank_grad.shape[1]:
                 full_rank_grad = torch.matmul(low_rank_grad, self.ortho_matrix)
             else:
                 full_rank_grad = torch.matmul(self.ortho_matrix, low_rank_grad)
-            if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ) # quantize back for storage
+            if self.quantize_type: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, self.quantize_type, self.quantize_blocksz) # quantize back for storage
         elif self.proj_type == 'reverse_std':
-            if QUANTIZE: self.ortho_matrix = self._dequantize(self.ortho_matrix, QUANTIZE, self.quantization_state, low_rank_grad.dtype)
+            if self.quantize_type: self.ortho_matrix = self._dequantize(self.ortho_matrix, self.quantize_type, self.quantization_state, low_rank_grad.dtype)
             if low_rank_grad.shape[0] <= low_rank_grad.shape[1]: # note this is different from std
                 full_rank_grad = torch.matmul(self.ortho_matrix, low_rank_grad)
             else:
                 full_rank_grad = torch.matmul(low_rank_grad, self.ortho_matrix)
-            if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
+            if self.quantize_type: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, self.quantize_type, self.quantize_blocksz)
         elif self.proj_type == 'right':
-            if QUANTIZE: self.ortho_matrix = self._dequantize(self.ortho_matrix, QUANTIZE, self.quantization_state, full_rank_grad.dtype)
+            if self.quantize_type: self.ortho_matrix = self._dequantize(self.ortho_matrix, self.quantize_type, self.quantization_state, full_rank_grad.dtype)
             full_rank_grad = torch.matmul(low_rank_grad, self.ortho_matrix)
-            if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
+            if self.quantize_type: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, self.quantize_type, self.quantize_blocksz)
         elif self.proj_type == 'left':
-            if QUANTIZE: self.ortho_matrix = self._dequantize(self.ortho_matrix, QUANTIZE, self.quantization_state, full_rank_grad.dtype)
+            if self.quantize_type: self.ortho_matrix = self._dequantize(self.ortho_matrix, self.quantize_type, self.quantization_state, full_rank_grad.dtype)
             full_rank_grad = torch.matmul(self.ortho_matrix, low_rank_grad)
-            if QUANTIZE: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, QUANTIZE, BLOCKSZ)
+            if self.quantize_type: self.ortho_matrix, self.quantization_state = self._quantize(self.ortho_matrix, self.quantize_type, self.quantize_blocksz)
         elif self.proj_type == 'full':
-            if QUANTIZE:
-                self.ortho_matrix[0] = self._dequantize(self.ortho_matrix[0], QUANTIZE, self.quantization_state, full_rank_grad.dtype)
-                self.ortho_matrix[1] = self._dequantize(self.ortho_matrix[0], QUANTIZE, self.quantization_state_full, full_rank_grad.dtype)
+            if self.quantize_type:
+                self.ortho_matrix[0] = self._dequantize(self.ortho_matrix[0], self.quantize_type, self.quantization_state, full_rank_grad.dtype)
+                self.ortho_matrix[1] = self._dequantize(self.ortho_matrix[0], self.quantize_type, self.quantization_state_full, full_rank_grad.dtype)
             full_rank_grad = torch.matmul(self.ortho_matrix[0], low_rank_grad) @ self.ortho_matrix[1]
-            if QUANTIZE:
-                self.ortho_matrix[0], self.quantization_state = self._quantize(self.ortho_matrix[0], QUANTIZE, BLOCKSZ)
-                self.ortho_matrix[0], self.quantization_state[1] = self._quantize(self.ortho_matrix[1], QUANTIZE, BLOCKSZ)
+            if self.quantize_type:
+                self.ortho_matrix[0], self.quantization_state = self._quantize(self.ortho_matrix[0], self.quantize_type, self.quantize_blocksz)
+                self.ortho_matrix[0], self.quantization_state[1] = self._quantize(self.ortho_matrix[1], self.quantize_type, self.quantize_blocksz)
         
         return full_rank_grad * self.scale
         
@@ -159,22 +161,22 @@ class GaLoreProjector:
 
     def _quantize(self, A, quantize_type, bsz=4096):
         # print("QUANTIZING")
-        if quantize_type == 'fp8':
+        if quantize_type == '8bit':
             return bnbf.quantize(A)
-        elif quantize_type == 'fp4':
+        elif quantize_type == '4bit':
             return bnbf.quantize_4bit(A)
-        elif quantize_type == 'fp8_blockwise':
+        elif quantize_type == '8bit_blockwise':
             return bnbf.quantize_blockwise(A, blocksize=bsz)
         else:
             raise ValueError("Invalid quantization type")
 
     def _dequantize(self, A, quantize_type, state, dtype):
         # print("DEQUANTIZING")
-        if quantize_type == 'fp8':
+        if quantize_type == '8bit':
             return bnbf.dequantize(A, state).to(dtype) # dequantizes to fp32 by default without .to(dtype)
-        elif quantize_type == 'fp4':
+        elif quantize_type == '4bit':
             return bnbf.dequantize_4bit(A, state).to(dtype)
-        elif quantize_type == 'fp8_blockwise':
+        elif quantize_type == '8bit_blockwise':
             return bnbf.dequantize_blockwise(A, state).to(dtype)
         else:
             raise ValueError("Invalid quantization type")

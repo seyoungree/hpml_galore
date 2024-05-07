@@ -91,8 +91,8 @@ class AdamW(Optimizer):
                 # GaLore Projection
                 if "rank" in group:
                     if "projector" not in state:
-                        state["projector"] = GaLoreProjector(group["rank"], update_proj_gap=group["update_proj_gap"], scale=group["scale"], proj_type=group["proj_type"])
-                    
+                        state["projector"] = GaLoreProjector(group["rank"], update_proj_gap=group["update_proj_gap"], scale=group["scale"],
+                                                             proj_type=group["proj_type"], quantize_type=group["proj_quantize_type"], quantize_blocksz=group["proj_quantize_blocksz"])
                     grad = state["projector"].project(grad, state["step"])
 
                 # State initialization

@@ -215,6 +215,10 @@ def parse_args():
     parser.add_argument("--galore_scale", type=float, default=1.0)
     # proj_type
     parser.add_argument("--proj_type", type=str, default="std")
+    # proj_quantize_type
+    parser.add_argument("--proj_quantize_type", type=str, default="8bit_blockwise")
+    # proj_quantize_blocksz
+    parser.add_argument("--proj_quantize_blocksz", type=int, default=4096)
     # lora_all_modules
     parser.add_argument("--lora_all_modules", action="store_true", help="Whether or not to use lora for all modules.")
     # eval_llama
@@ -536,7 +540,8 @@ def main():
         regular_params = [p for p in model.parameters() if id(p) not in id_galore_params]
         # then call galore_adamw
         param_groups = [{'params': regular_params}, 
-                        {'params': galore_params, 'rank': args.lora_r, 'update_proj_gap': args.update_proj_gap, 'scale': args.galore_scale, 'proj_type': args.proj_type}]
+                        {'params': galore_params, 'rank': args.lora_r, 'update_proj_gap': args.update_proj_gap,
+                         'scale': args.galore_scale, 'proj_type': args.proj_type, 'proj_quantize_type': args.proj_quantize_type, 'proj_quantize_blocksz': args.proj_quantize_blocksz}]
         optimizer = GaLoreAdamW(param_groups, lr=args.learning_rate)
     
 
