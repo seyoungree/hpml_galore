@@ -2,7 +2,7 @@
 
 This project forks and expands on the pre-release version of the GaLore algorithm, proposed by [GaLore: Memory-Efficient LLM Training by Gradient Low-Rank Projection](https://arxiv.org/abs/2403.03507). Gradient Low-Rank Projection (GaLore) is a memory-efficient low-rank training strategy that allows *full-parameter* learning but is more *memory-efficient* than common low-rank adaptation methods, such as LoRA. In short, GaLore takes a low-rank approximation of the gradient matrix instead of the weight matrix, and uses this low-rank matrix when computing and storing optimizer states. In order to compute this low rank approximation, the gradient matrix is multipled by a projection matrix. In this project, we experiment with quantizing the projection matrix to save even more memory, and explore its effects on LLM fine-tuning performance — specifically tuning RoBERTa on GLUE tasks.
 
-We aim to make an open-source contribution to the release of GaLore and eventually have some of our changes merged. 
+We aim to make an open-source contribution to the release of GaLore. In fact, we have been in contact with the authors of the paper in the past month.
 
 ## Implementing quantization for gradient projection matrices
 
