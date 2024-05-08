@@ -168,6 +168,9 @@ class GaLoreProjector:
             raise ValueError('type should be left, right or full')
 
     def _quantize(self, A, quantize_type, bsz=4096):
+        '''
+        Quantize the tensor A according to the desired method.
+        '''
         if quantize_type == '8bit':
             return bnbf.quantize(A)
         elif quantize_type == '4bit':
@@ -178,6 +181,9 @@ class GaLoreProjector:
             raise ValueError("Invalid quantization type")
 
     def _dequantize(self, A, quantize_type, state, dtype):
+        '''
+        Dequantize the tensor A according to the desired method.
+        '''
         if quantize_type == '8bit':
             return bnbf.dequantize(A, state).to(dtype) # dequantizes to fp32 by default without .to(dtype)
         elif quantize_type == '4bit':
