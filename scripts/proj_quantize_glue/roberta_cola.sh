@@ -1,6 +1,6 @@
 #!/bin/bash
 
-lrs=("2e-5" "3e-5") 
+lrs=("1e-5" "2e-5" "3e-5") 
 for lr in ${lrs[@]}; do for scale in 2 4
 	do python run_glue.py --model_name_or_path roberta-base \
 		--task_name cola \
