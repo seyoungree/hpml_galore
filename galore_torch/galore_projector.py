@@ -1,15 +1,15 @@
 import torch
 import bitsandbytes.functional as bnbf
 
-# Ideally, we make these command line arguments instead. However, since we are using LLama-Factory to benchmark,
-# we'd have to also modify the Llama-Factory package to accomodate for the new argument. For now, we can just hardcode these flags
-# and modify it in between runs, so we don't have to touch Llama-Factory.  
-
-# QUANTIZE = None # if quantizing, choose one of 'fp8', 'fp4', 'fp8_blockwise' - otherwise, set to None
-# self.quantize_blocksz = 128 # only matters if QUANTIZE = 'fp8_blockwise'
+# We document only the changes we made (e.g. adding extra arguments) to the GaLore pre-release
 
 class GaLoreProjector:
     def __init__(self, rank, verbose=False, update_proj_gap=200, scale=1.0, proj_type='std', quantize_type='8bit_blockwise', quantize_blocksz=4096):
+        '''
+        We added the arguments:
+        quantize_type: '4bit', '8bit', '8bit_blockwise' or None; method for quantizing projection matrix
+        quantize_blocksz: Block size for projection matrix quantization
+        '''
         self.rank = rank
         self.verbose = verbose
         self.update_proj_gap = update_proj_gap
@@ -19,8 +19,12 @@ class GaLoreProjector:
         self.quantize_type = quantize_type if quantize_type in ['4bit', '8bit', '8bit_blockwise'] else None
         self.quantize_blocksz = quantize_blocksz
 
-    # only added quantization functionality for 'std'
     def project(self, full_rank_grad, iter):
+        '''
+        Before matrix-multiplying the projection matrix (self.ortho_matrix) with the gradient matrix (self.full_rank_grad),
+        we dequantize self.ortho_matrix. After performing the matrix multiplication, we quantize 
+        self.ortho_matrix back for storage and save its state.
+        '''
         if self.proj_type == 'std': 
             if full_rank_grad.shape[0] >= full_rank_grad.shape[1]:
                 if self.ortho_matrix is None or iter % self.update_proj_gap == 0:
@@ -86,6 +90,10 @@ class GaLoreProjector:
         return low_rank_grad
 
     def project_back(self, low_rank_grad):
+        '''
+        Again, we dequantize self.ortho_matrix before using it in a matrix multiplication.
+        Afterwards, we re-quantize it back for storage.
+        '''
 
         if self.proj_type == 'std':
             if self.quantize_type: self.ortho_matrix = self._dequantize(self.ortho_matrix, self.quantize_type, self.quantization_state, low_rank_grad.dtype) # dequantize
@@ -160,7 +168,6 @@ class GaLoreProjector:
             raise ValueError('type should be left, right or full')
 
     def _quantize(self, A, quantize_type, bsz=4096):
-        # print("QUANTIZING")
         if quantize_type == '8bit':
             return bnbf.quantize(A)
         elif quantize_type == '4bit':
@@ -171,7 +178,6 @@ class GaLoreProjector:
             raise ValueError("Invalid quantization type")
 
     def _dequantize(self, A, quantize_type, state, dtype):
-        # print("DEQUANTIZING")
         if quantize_type == '8bit':
             return bnbf.dequantize(A, state).to(dtype) # dequantizes to fp32 by default without .to(dtype)
         elif quantize_type == '4bit':
