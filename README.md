@@ -13,6 +13,9 @@ We aim to make an open-source contribution to the release of GaLore. In fact, we
 
 `scripts/proj_quantize_glue` contains the scripts we wrote and ran for our experiments.
 
+## Results
+We ran benchmarks on NVIDIA L4 GPU with 24GB RAM and G2-standard-4 CPU (4 vCPU, 16GB RAM) on CUDA 11.8. We chose two GLUE tasks, MPRC and COLA and document their scores.
+
 ## Citation
 ```bibtex
 @misc{zhao2024galore,
