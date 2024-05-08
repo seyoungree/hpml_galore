@@ -11,7 +11,7 @@ We aim to make an open-source contribution to the release of GaLore and eventual
 ## Benchmark: Fine-Tuning RoBERTa on GLUE tasks
 `run_glue.py` is the main script for fine-tuning RoBERTa models on GLUE tasks with GaLore. The original script was developed by the authors of the GaLore paper, but we make minor changes for our own convenience (e.g. wandb logging).
 
-`scripts/proj_quantize_glue` contains the scripts we ran for our experiments.
+`scripts/proj_quantize_glue` contains the scripts we wrote and ran for our experiments.
 
 ## Citation
 ```bibtex
