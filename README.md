@@ -18,7 +18,7 @@ We ran the above benchmarks on NVIDIA L4 GPU with 24GB RAM and G2-standard-4 CPU
 
 ![alt text](https://github.com/seyoungree/hpml_galore/blob/quantize/imgs/results.png "chart")
 
-The best hyperparameters are bolded, and we use these for comparison. We observed that using 8-bit blockwise quantization of the projection matrices yields slightly higher scores for both MPRC and COLA tasks compared to no quantization. Although this implies that 8-bit blockwise quantization has minimal effect on model performance here, we note that RoBERTa base is a relatively small language models compared to those that would actually leverage projection matrix quantization in practice. It's possible that we observe a more noticeable effect of quantization on larger models and/or larger (i.e. higher rank) projection matrices.
+The best hyperparameters are bolded, and we use these for comparison. We observed that using 8-bit blockwise quantization of the projection matrices yields slightly higher scores for both MPRC and COLA tasks compared to no quantization. Although this implies that 8-bit blockwise quantization has minimal effect on model performance here, we note that RoBERTa base is a relatively small language model compared to those that would actually leverage projection matrix quantization in practice. It's possible that we observe a more noticeable effect of quantization on larger models and/or larger (i.e. higher rank) projection matrices.
 
 ## Citation
 ```bibtex
