@@ -14,11 +14,11 @@ We aim to make an open-source contribution to the release of GaLore. In fact, we
 `scripts/proj_quantize_glue` contains the scripts we wrote and ran for our experiments.
 
 ## Results
-We ran benchmarks on NVIDIA L4 GPU with 24GB RAM and G2-standard-4 CPU (4 vCPU, 16GB RAM) on CUDA 11.8. We chose two GLUE tasks, MPRC and COLA, on  RoBERTa-Base and document their scores.
+We ran the above benchmarks on NVIDIA L4 GPU with 24GB RAM and G2-standard-4 CPU (4 vCPU, 16GB RAM) on CUDA 11.8. We chose two GLUE tasks, MPRC and COLA and document their scores.
 
 ![alt text](https://github.com/seyoungree/hpml_galore/blob/quantize/imgs/results.png "chart")
 
-We observed that with no quantization vs. 8-bit quantization of the projection matrices, there is  higher scores for both MPRC and COLA metrics when using 8-bit quantization. 
+The best hyperparameters are bolded, and we use these for comparison. We observed that using 8-bit blockwise quantization of the projection matrices yields higher scores for both MPRC and COLA tasks compared to no quantization.
 
 ## Citation
 ```bibtex
